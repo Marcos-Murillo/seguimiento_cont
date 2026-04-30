@@ -1,11 +1,11 @@
 'use client'
 
-import { type User, mockContractors } from '@/lib/types'
+import { useState, useEffect } from 'react'
+import { type User, type Contractor } from '@/lib/types'
+import { getContractors } from '@/lib/firebase-db'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react'
 
 interface ContractorDashboardProps { user: User }
@@ -25,7 +25,28 @@ function getStatusBadge(status: string) {
 }
 
 export function ContractorDashboard({ user }: ContractorDashboardProps) {
-  const data = mockContractors.find(c => c.cedula === user.cedula) || mockContractors[0]
+  const [data, setData] = useState<Contractor | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getContractors().then(list => {
+      const found = list.find(c => c.cedula === user.cedula) ?? list[0] ?? null
+      setData(found)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [user.cedula])
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+      Cargando contrato...
+    </div>
+  )
+
+  if (!data) return (
+    <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+      No se encontró información de contrato asociada a tu cuenta.
+    </div>
+  )
 
   const stats = [
     { title: 'Total del Contrato', value: `$${data.total.toLocaleString('es-CO')}`, icon: FileText, desc: 'Valor total pactado' },
@@ -90,10 +111,10 @@ export function ContractorDashboard({ user }: ContractorDashboardProps) {
             </TableHeader>
             <TableBody>
               <TableRow className="text-sm">
-                <TableCell>{data.fechaEntrega}</TableCell>
-                <TableCell>{data.seguimientoSP.noCP}</TableCell>
-                <TableCell>{data.seguimientoSP.noSP}</TableCell>
-                <TableCell>{data.fechaEnvioPresupuesto}</TableCell>
+                <TableCell>{data.fechaEntrega || '—'}</TableCell>
+                <TableCell>{data.seguimientoSP?.noCP || '—'}</TableCell>
+                <TableCell>{data.seguimientoSP?.noSP || '—'}</TableCell>
+                <TableCell>{data.fechaEnvioPresupuesto || '—'}</TableCell>
                 <TableCell>{getStatusBadge(data.estadoCuenta)}</TableCell>
                 <TableCell className="max-w-xs">
                   <p className="text-xs text-muted-foreground truncate">{data.observaciones || 'Sin observaciones'}</p>
@@ -111,11 +132,11 @@ export function ContractorDashboard({ user }: ContractorDashboardProps) {
         <CardContent className="px-4 pb-4 grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-muted-foreground">Estado</p>
-            <p className="text-sm font-medium">{data.informeSupervision}</p>
+            <p className="text-sm font-medium">{data.informeSupervision || '—'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Fecha Elaboración</p>
-            <p className="text-sm font-medium">{data.fechaElaboracionDFUV}</p>
+            <p className="text-sm font-medium">{data.fechaElaboracionDFUV || '—'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Fecha Aprobación</p>

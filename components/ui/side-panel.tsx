@@ -33,7 +33,7 @@ function SidePanelContent({ className, children, ...props }: React.ComponentProp
           'fixed top-4 right-4 bottom-4 z-50',
           'w-[50vw] min-w-[480px]',
           'bg-card border border-border rounded-2xl shadow-2xl',
-          'flex flex-col overflow-hidden relative',
+          'flex flex-col overflow-hidden',
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           'data-[state=closed]:slide-out-to-right-1/2 data-[state=open]:slide-in-from-right-1/2',

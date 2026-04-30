@@ -2,7 +2,6 @@
 
 import { type CuotaHistorial } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { X, History, CreditCard, CheckCircle2, XCircle, Clock, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -41,13 +40,20 @@ const cuentaLabels: Record<string, string> = {
 }
 
 export function PaymentHistoryPanel({ open, onClose, historial, nombreContratista }: PaymentHistoryPanelProps) {
+  if (!open) return null
+
   return (
+    // Panel fijo a la izquierda del card principal (que está en right-4)
+    // El card principal tiene w-[50vw] min-w-[480px], así que posicionamos este a su izquierda
     <div
       className={cn(
-        'absolute inset-y-0 left-0 z-10 w-[340px] bg-card border-r border-border flex flex-col shadow-xl',
-        'transition-transform duration-300 ease-in-out',
-        open ? 'translate-x-0' : '-translate-x-full'
+        'fixed top-4 bottom-4 z-50',
+        'w-[320px]',
+        'bg-card border border-border rounded-2xl shadow-2xl',
+        'flex flex-col overflow-hidden',
+        'animate-in slide-in-from-right-8 fade-in-0 duration-300',
       )}
+      style={{ right: 'calc(50vw + 1rem)' }}
     >
       {/* Header */}
       <div className="px-4 pt-5 pb-3 border-b border-border shrink-0 flex items-center justify-between">
@@ -80,7 +86,6 @@ export function PaymentHistoryPanel({ open, onClose, historial, nombreContratist
           historial.map((cuota, idx) => (
             <div key={cuota.cuotaNo}>
               <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
-                {/* Cuota header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
@@ -91,14 +96,11 @@ export function PaymentHistoryPanel({ open, onClose, historial, nombreContratist
                   <StatusBadge status={cuota.estadoCuota} />
                 </div>
 
-                {/* Valor y fecha */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">Valor pagado</p>
                     <p className="text-sm font-bold">
-                      {cuota.valorPagado > 0
-                        ? `$${cuota.valorPagado.toLocaleString('es-CO')}`
-                        : '—'}
+                      {cuota.valorPagado > 0 ? `$${cuota.valorPagado.toLocaleString('es-CO')}` : '—'}
                     </p>
                   </div>
                   <div>
@@ -110,7 +112,6 @@ export function PaymentHistoryPanel({ open, onClose, historial, nombreContratist
                   </div>
                 </div>
 
-                {/* Proceso de pago */}
                 <div>
                   <p className="text-xs text-muted-foreground mb-1.5">Proceso de pago</p>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -126,7 +127,6 @@ export function PaymentHistoryPanel({ open, onClose, historial, nombreContratist
                   </div>
                 </div>
 
-                {/* Observaciones */}
                 {cuota.observaciones && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">Observaciones</p>

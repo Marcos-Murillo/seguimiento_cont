@@ -1,8 +1,15 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  type User as FirebaseUser,
+} from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
+import { auth, db } from './firebase'
 import { type User, type UserRole } from './types'
-
 
 interface AuthContextType {
   user: User | null
@@ -14,80 +21,71 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Mock users for development - will be replaced with Firebase
-const mockUsers: Record<string, { password: string; user: User }> = {
-  'superadmin@empresa.com': {
-    password: 'admin123',
-    user: {
-      id: 'super-1',
-      email: 'superadmin@empresa.com',
-      name: 'Super Administrador',
-      role: 'super_admin',
-      approvalStatus: 'approved',
-      createdAt: new Date()
+// Convierte FirebaseUser + perfil de Firestore en nuestro tipo User
+async function buildUser(fbUser: FirebaseUser): Promise<User> {
+  const snap = await getDoc(doc(db, 'usuarios', fbUser.uid))
+  if (snap.exists()) {
+    const data = snap.data()
+    return {
+      id: fbUser.uid,
+      email: fbUser.email ?? '',
+      name: data.name ?? fbUser.displayName ?? '',
+      role: (data.role as UserRole) ?? 'contractor',
+      cedula: data.cedula,
+      approvalStatus: data.approvalStatus ?? 'approved',
+      createdAt: data.createdAt?.toDate?.() ?? new Date(),
     }
-  },
-  'admin@empresa.com': {
-    password: 'admin123',
-    user: {
-      id: 'admin-1',
-      email: 'admin@empresa.com',
-      name: 'Administrador',
-      role: 'admin',
-      approvalStatus: 'approved',
-      createdAt: new Date()
-    }
-  },
-  'contratista@empresa.com': {
-    password: 'contra123',
-    user: {
-      id: '1',
-      email: 'contratista@empresa.com',
-      name: 'Juan Carlos Pérez García',
-      role: 'contractor',
-      cedula: '1234567890',
-      approvalStatus: 'approved',
-      createdAt: new Date()
-    }
+  }
+  // Fallback si no existe perfil en Firestore
+  return {
+    id: fbUser.uid,
+    email: fbUser.email ?? '',
+    name: fbUser.displayName ?? fbUser.email ?? '',
+    role: 'contractor',
+    approvalStatus: 'approved',
+    createdAt: new Date(),
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Escucha cambios de sesión de Firebase
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        const u = await buildUser(fbUser)
+        setUser(u)
+      } else {
+        setUser(null)
+      }
+      setIsLoading(false)
+    })
+    return unsub
+  }, [])
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true)
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800))
-    
-    const mockUser = mockUsers[email.toLowerCase()]
-    
-    if (mockUser && mockUser.password === password) {
-      setUser(mockUser.user)
-      setIsLoading(false)
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password)
+      const u = await buildUser(cred.user)
+      setUser(u)
       return true
+    } catch {
+      return false
+    } finally {
+      setIsLoading(false)
     }
-    
-    setIsLoading(false)
-    return false
   }, [])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await signOut(auth)
     setUser(null)
   }, [])
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        login,
-        logout,
-        isAuthenticated: !!user
-      }}
-    >
+    <AuthContext.Provider value={{ user, isLoading, login, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   )
@@ -95,17 +93,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }
 
 export function getRoleName(role: UserRole): string {
-  const roleNames: Record<UserRole, string> = {
+  const names: Record<UserRole, string> = {
     super_admin: 'Super Administrador',
     admin: 'Administrador',
-    contractor: 'Contratista'
+    contractor: 'Contratista',
   }
-  return roleNames[role]
+  return names[role]
 }

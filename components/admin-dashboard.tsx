@@ -1,6 +1,8 @@
 'use client'
 
-import { type User, mockContractors, mockPendingUsers } from '@/lib/types'
+import { useState, useEffect } from 'react'
+import { type User, type Contractor } from '@/lib/types'
+import { getContractors } from '@/lib/firebase-db'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -11,7 +13,7 @@ import {
 
 interface AdminDashboardProps { user: User }
 
-const today = new Date('2026-04-28')
+const today = new Date()
 
 function parseDate(str: string): Date | null {
   if (!str) return null
@@ -24,16 +26,28 @@ function diffDays(date: Date): number {
 }
 
 export function AdminDashboard({ user }: AdminDashboardProps) {
-  const c = mockContractors
+  const [c, setC] = useState<Contractor[]>([])
+  const [pendingCount, setPendingCount] = useState(0)
+  const [loading, setLoading] = useState(true)
 
-  // ── Financieras ──────────────────────────────────────────────────────────
-  const totalActivos     = c.filter(x => x.estadoCuenta === 'activo').reduce((s, x) => s + x.total, 0)
-  const totalPagado      = c.filter(x => x.estadoCuota === 'pagado').reduce((s, x) => s + x.valorCuota, 0)
-  const totalPendiente   = c.filter(x => x.estadoCuota === 'pendiente' || x.estadoCuota === 'en_proceso').reduce((s, x) => s + x.valorCuota, 0)
-  const valorPromCuota   = c.length ? Math.round(c.reduce((s, x) => s + x.valorCuota, 0) / c.length) : 0
+  useEffect(() => {
+    getContractors().then(data => { setC(data); setLoading(false) }).catch(() => setLoading(false))
+    // Cargar solicitudes pendientes
+    fetch('/api/solicitudes').then(r => r.json()).then(d => setPendingCount(d.count ?? 0)).catch(() => {})
+  }, [])
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+      Cargando datos...
+    </div>
+  )
+
+  const totalActivos      = c.filter(x => x.estadoCuenta === 'activo').reduce((s, x) => s + x.total, 0)
+  const totalPagado       = c.filter(x => x.estadoCuota === 'pagado').reduce((s, x) => s + x.valorCuota, 0)
+  const totalPendiente    = c.filter(x => x.estadoCuota === 'pendiente' || x.estadoCuota === 'en_proceso').reduce((s, x) => s + x.valorCuota, 0)
+  const valorPromCuota    = c.length ? Math.round(c.reduce((s, x) => s + x.valorCuota, 0) / c.length) : 0
   const totalComprometido = c.reduce((s, x) => s + x.total, 0)
 
-  // ── Estado de pagos ──────────────────────────────────────────────────────
   const porEstado = {
     pendiente:  c.filter(x => x.estadoCuota === 'pendiente').length,
     en_proceso: c.filter(x => x.estadoCuota === 'en_proceso').length,
@@ -44,44 +58,33 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
   const atrasado = c.filter(x => x.estadoCuota === 'pendiente' || x.estadoCuota === 'rechazado').length
   const pctAlDia = c.length ? Math.round((alDia / c.length) * 100) : 0
 
-  // ── Documentación ────────────────────────────────────────────────────────
   const sinInforme    = c.filter(x => !x.informeSupervision || x.informeSupervision === 'Pendiente').length
   const sinAprobacion = c.filter(x => !x.fechaAprobacion).length
-  const sinEnlaceCRD  = c.filter(x => !x.contratacionCRD.enlace).length
+  const sinEnlaceCRD  = c.filter(x => !x.contratacionCRD?.enlace).length
 
-  // ── Alertas ──────────────────────────────────────────────────────────────
   const proximosVencer = c.filter(x => {
     const d = parseDate(x.fechaEntrega)
     if (!d) return false
     const diff = diffDays(d)
     return diff >= 0 && diff <= 7
   })
-  const rechazados   = c.filter(x => x.estadoCuota === 'rechazado')
-  const suspendidos  = c.filter(x => x.estadoCuenta === 'suspendido')
+  const rechazados  = c.filter(x => x.estadoCuota === 'rechazado')
+  const suspendidos = c.filter(x => x.estadoCuenta === 'suspendido')
 
-  // ── Proceso de pago ──────────────────────────────────────────────────────
-  const todasAprobadas = c.filter(x =>
-    Object.values(x.procesoPago).every(v => v.toLowerCase() === 'aprobado' || v.toLowerCase() === 'n/a')
-  ).length
-  const conPendientesPago = c.filter(x =>
-    Object.values(x.procesoPago).some(v => v.toLowerCase() === 'pendiente')
-  ).length
-  const conRechazadosPago = c.filter(x =>
-    Object.values(x.procesoPago).some(v => v.toLowerCase() === 'rechazado')
-  ).length
+  const todasAprobadas    = c.filter(x => Object.values(x.procesoPago ?? {}).every(v => v.toLowerCase() === 'aprobado' || v.toLowerCase() === 'n/a')).length
+  const conPendientesPago = c.filter(x => Object.values(x.procesoPago ?? {}).some(v => v.toLowerCase() === 'pendiente')).length
+  const conRechazadosPago = c.filter(x => Object.values(x.procesoPago ?? {}).some(v => v.toLowerCase() === 'rechazado')).length
 
-  const fmt = (n: number) => `$${n.toLocaleString('es-CO')}`
+  const fmt = (n: number) => `${n.toLocaleString('es-CO')}`
 
   return (
     <div className="flex flex-col gap-6 pb-6">
-      {/* Saludo */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Bienvenido, {user.name.split(' ')[0]}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Resumen general del sistema de seguimiento de contratistas</p>
       </div>
 
-      {/* ── Alertas activas ─────────────────────────────────────────────── */}
-      {(proximosVencer.length > 0 || rechazados.length > 0 || suspendidos.length > 0 || mockPendingUsers.length > 0) && (
+      {(proximosVencer.length > 0 || rechazados.length > 0 || suspendidos.length > 0 || pendingCount > 0) && (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Alertas</p>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -127,12 +130,12 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                 </div>
               </div>
             )}
-            {mockPendingUsers.length > 0 && (
+            {pendingCount > 0 && (
               <div className="flex items-start gap-3 p-3 rounded-lg border border-blue-400/40 bg-blue-500/10">
                 <Users className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Aprobaciones pendientes</p>
-                  <p className="text-xs text-muted-foreground">{mockPendingUsers.length} usuario(s) esperan aprobación de acceso</p>
+                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Solicitudes de acceso</p>
+                  <p className="text-xs text-muted-foreground">{pendingCount} solicitud(es) pendiente(s) de aprobación</p>
                 </div>
               </div>
             )}
@@ -140,7 +143,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
         </div>
       )}
 
-      {/* ── Financieras ─────────────────────────────────────────────────── */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Financiero</p>
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -154,7 +156,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
         </div>
       </div>
 
-      {/* ── Estado de pagos ──────────────────────────────────────────────── */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado de Pagos</p>
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -163,7 +164,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
           <StatCard icon={CheckCircle2} label="Pagados" value={porEstado.pagado} sub="cuotas" color="text-green-600 dark:text-green-400" />
           <StatCard icon={XCircle} label="Rechazados" value={porEstado.rechazado} sub="cuotas" color="text-red-600 dark:text-red-400" />
         </div>
-        {/* Barra de progreso al día */}
         <div className="p-4 rounded-lg border border-border/50 bg-card">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium">Contratos al día</p>
@@ -179,7 +179,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
         </div>
       </div>
 
-      {/* ── Documentación ────────────────────────────────────────────────── */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Documentación</p>
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
@@ -192,7 +191,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
         </div>
       </div>
 
-      {/* ── Proceso de pago ──────────────────────────────────────────────── */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Proceso de Pago</p>
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">

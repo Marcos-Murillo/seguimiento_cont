@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { type Contractor, mockContractors, mockPendingUsers } from '@/lib/types'
+import { useState, useEffect, useCallback } from 'react'
+import { type Contractor } from '@/lib/types'
+import { getContractors, createContractor, updateContractor, deleteContractor } from '@/lib/firebase-db'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,9 +23,7 @@ import {
   Link2, ShieldCheck, Receipt, History,
 } from 'lucide-react'
 
-void mockPendingUsers // suppress unused warning
-
-const allApprovedNames = mockContractors.map(c => ({ cedula: c.cedula, nombre: c.nombre }))
+void 0 // removed mock imports
 
 function getStatusBadge(status: string) {
   const map: Record<string, { label: string; className: string }> = {
@@ -137,7 +136,7 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
                 </div>
                 {!editing && (
                   <Button size="sm" variant="outline" className="shrink-0" onClick={() => setEditing(true)}>
-                    <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
+                    <Pencil className="h-3.5 w-3.5 mr-1" /> Actualizar
                   </Button>
                 )}
               </div>
@@ -289,7 +288,7 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
         {editing && (
           <SidePanelFooter>
             <Button variant="outline" onClick={() => { setEditing(false); setForm(contractor) }}>Cancelar</Button>
-            <Button onClick={() => { onSave?.(form); setEditing(false); onOpenChange(false) }}>Guardar cambios</Button>
+            <Button onClick={() => { onSave?.(form); setEditing(false); onOpenChange(false) }}>Guardar actualización</Button>
           </SidePanelFooter>
         )}
       </SidePanelContent>
@@ -302,20 +301,33 @@ function NewContractDialog({ open, onOpenChange, onSave }: {
   open: boolean; onOpenChange: (v: boolean) => void; onSave: (data: Contractor) => void
 }) {
   const [form, setForm] = useState<FormData>(emptyForm())
+  const [approvedUsers, setApprovedUsers] = useState<{ id: string; name: string; cedula: string }[]>([])
+
+  // Carga usuarios aprobados cuando se abre el dialog
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/usuarios')
+      .then(r => r.json())
+      .then(data => setApprovedUsers(Array.isArray(data) ? data : []))
+      .catch(() => setApprovedUsers([]))
+  }, [open])
+
   const set = (field: keyof FormData, value: unknown) => setForm(prev => ({ ...prev, [field]: value }))
 
   const handleSave = () => {
-    onSave({ ...form, id: Date.now().toString(), no: mockContractors.length + 1 })
+    onSave({ ...form, id: Date.now().toString(), no: 0 })
     setForm(emptyForm())
     onOpenChange(false)
   }
 
-  const F = ({ label, field, type = 'text', span2 }: { label: string; field: keyof FormData; type?: string; span2?: boolean }) => (
+  // Helper para renderizar campos — NO es un componente React, es una función que devuelve JSX
+  // Esto evita el problema de pérdida de foco al redefinir componentes en cada render
+  const field = (label: string, key: keyof FormData, type = 'text', span2 = false) => (
     <div className={span2 ? 'col-span-2' : ''}>
       <Label className="text-[10px] text-muted-foreground">{label}</Label>
       <Input type={type} className="h-7 text-sm mt-0.5"
-        value={String((form as Record<string, unknown>)[field] ?? '')}
-        onChange={e => set(field, type === 'number' ? Number(e.target.value) : e.target.value)} />
+        value={String((form as Record<string, unknown>)[key] ?? '')}
+        onChange={e => set(key, type === 'number' ? Number(e.target.value) : e.target.value)} />
     </div>
   )
 
@@ -334,33 +346,42 @@ function NewContractDialog({ open, onOpenChange, onSave }: {
                 <div className="col-span-2">
                   <Label className="text-[10px] text-muted-foreground">Contratista</Label>
                   <Select value={form.nombre} onValueChange={v => {
-                    const found = allApprovedNames.find(c => c.nombre === v)
+                    const found = approvedUsers.find(c => c.name === v)
                     setForm(prev => ({ ...prev, nombre: v, cedula: found?.cedula ?? prev.cedula }))
                   }}>
-                    <SelectTrigger className="h-7 text-sm mt-0.5"><SelectValue placeholder="Seleccionar contratista..." /></SelectTrigger>
-                    <SelectContent>{allApprovedNames.map(c => <SelectItem key={c.cedula} value={c.nombre}>{c.nombre}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="h-7 text-sm mt-0.5">
+                      <SelectValue placeholder="Seleccionar contratista..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {approvedUsers.length === 0
+                        ? <SelectItem value="__none__" disabled>Sin contratistas aprobados</SelectItem>
+                        : approvedUsers.map(c => (
+                            <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                          ))
+                      }
+                    </SelectContent>
                   </Select>
                 </div>
-                <F label="Cédula" field="cedula" />
+                {field('Cédula', 'cedula')}
               </div>
             </div>
             <Separator />
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-md mb-2">Información Contractual</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <F label="Contrato No." field="contratoNo" />
-                <F label="Egreso" field="egreso" />
-                <F label="Objeto Contractual" field="objetoContractual" span2 />
-                <F label="Supervisor" field="supervisor" span2 />
+                {field('Contrato No.', 'contratoNo')}
+                {field('Egreso', 'egreso')}
+                {field('Objeto Contractual', 'objetoContractual', 'text', true)}
+                {field('Supervisor', 'supervisor', 'text', true)}
               </div>
             </div>
             <Separator />
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-green-700 dark:text-green-400 bg-green-500/10 px-3 py-1.5 rounded-md mb-2">Pagos</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <F label="Cuota No." field="cuotaNo" type="number" />
-                <F label="Valor Cuota" field="valorCuota" type="number" />
-                <F label="Total" field="total" type="number" />
+                {field('Cuota No.', 'cuotaNo', 'number')}
+                {field('Valor Cuota', 'valorCuota', 'number')}
+                {field('Total', 'total', 'number')}
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Estado Cuota</Label>
                   <Select value={form.estadoCuota} onValueChange={v => set('estadoCuota', v)}>
@@ -381,12 +402,12 @@ function NewContractDialog({ open, onOpenChange, onSave }: {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-orange-700 dark:text-orange-400 bg-orange-500/10 px-3 py-1.5 rounded-md mb-2">Fechas y Documentos</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <F label="Fecha Entrega" field="fechaEntrega" type="date" />
-                <F label="Fecha Envío Presupuesto" field="fechaEnvioPresupuesto" type="date" />
-                <F label="Fecha Elaboración DFUV" field="fechaElaboracionDFUV" type="date" />
-                <F label="Fecha Aprobación" field="fechaAprobacion" type="date" />
-                <F label="Informe Supervisión" field="informeSupervision" />
-                <F label="DEUV" field="deuv" />
+                {field('Fecha Entrega', 'fechaEntrega', 'date')}
+                {field('Fecha Envío Presupuesto', 'fechaEnvioPresupuesto', 'date')}
+                {field('Fecha Elaboración DFUV', 'fechaElaboracionDFUV', 'date')}
+                {field('Fecha Aprobación', 'fechaAprobacion', 'date')}
+                {field('Informe Supervisión', 'informeSupervision')}
+                {field('DEUV', 'deuv')}
               </div>
             </div>
             <Separator />
@@ -408,13 +429,29 @@ function NewContractDialog({ open, onOpenChange, onSave }: {
 
 // ─── Página principal ────────────────────────────────────────────────────────
 export default function ContratistasPage() {
-  const [contractors, setContractors] = useState<Contractor[]>(mockContractors)
+  const [contractors, setContractors] = useState<Contractor[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedContractor, setSelectedContractor] = useState<Contractor | null>(null)
   const [dialogMode, setDialogMode] = useState<'view' | 'edit'>('view')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+
+  // Carga inicial desde Firestore, con fallback a mock si está vacío
+  const loadContractors = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await getContractors()
+      setContractors(data)
+    } catch {
+      setContractors([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadContractors() }, [loadContractors])
 
   const filtered = contractors.filter(c => {
     const matchSearch =
@@ -427,9 +464,25 @@ export default function ContratistasPage() {
 
   const openView = (c: Contractor) => { setSelectedContractor(c); setDialogMode('view'); setDialogOpen(true) }
   const openEdit = (c: Contractor) => { setSelectedContractor(c); setDialogMode('edit'); setDialogOpen(true) }
-  const handleSave = (updated: Contractor) => setContractors(prev => prev.map(c => c.id === updated.id ? updated : c))
-  const handleNew = (c: Contractor) => setContractors(prev => [...prev, c])
-  const handleDelete = (id: string) => setContractors(prev => prev.filter(c => c.id !== id))
+
+  const handleSave = async (updated: Contractor) => {
+    // Pasamos el contratista anterior para que updateContractor pueda construir el historial
+    const previous = contractors.find(c => c.id === updated.id)
+    await updateContractor(updated.id, updated, previous)
+    setContractors(prev => prev.map(c => c.id === updated.id ? updated : c))
+  }
+
+  const handleNew = async (c: Contractor) => {
+    const { id: _id, ...data } = c
+    void _id
+    const newId = await createContractor(data)
+    setContractors(prev => [...prev, { ...c, id: newId }])
+  }
+
+  const handleDelete = async (id: string) => {
+    await deleteContractor(id)
+    setContractors(prev => prev.filter(c => c.id !== id))
+  }
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -473,6 +526,11 @@ export default function ContratistasPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0 flex-1 overflow-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+              Cargando contratos...
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent text-xs">
@@ -518,7 +576,7 @@ export default function ContratistasPage() {
                           <Eye className="mr-2 h-4 w-4" /> Ver información
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openEdit(c)}>
-                          <Pencil className="mr-2 h-4 w-4" /> Editar
+                          <Pencil className="mr-2 h-4 w-4" /> Actualizar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => handleDelete(c.id)}
@@ -532,6 +590,7 @@ export default function ContratistasPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
