@@ -12,11 +12,20 @@ export interface User {
   createdAt: Date
 }
 
+export type EstadoCuota = 
+  | 'pendiente_informe_contratista'
+  | 'pendiente_informe_supervision'
+  | 'gestion_documentos_pago'
+  | 'enviado_presupuesto'
+  | 'remitido_pagaduria'
+  | 'pagado'
+
 export interface CuotaHistorial {
   cuotaNo: number
   valorPagado: number
-  estadoCuota: 'pendiente' | 'en_proceso' | 'pagado' | 'rechazado'
+  estadoCuota: EstadoCuota
   fechaPago: string
+  fechaActualizacion: string // Fecha y hora de cuando se guardó este registro
   observaciones: string
   procesoPago: {
     cuenta979001: string
@@ -54,7 +63,7 @@ export interface Contractor {
     enlace: string
   }
   supervisor: string
-  estadoCuota: 'pendiente' | 'en_proceso' | 'pagado' | 'rechazado'
+  estadoCuota: EstadoCuota
   observaciones: string
   documentosBase: {
     poliza: string
@@ -74,4 +83,8 @@ export interface Contractor {
   estadoCuenta: 'activo' | 'inactivo' | 'suspendido'
   revisado: boolean
   historialCuotas?: CuotaHistorial[]
+  // Nuevos campos para control de contrato
+  fechaInicio?: string
+  fechaFin?: string
+  numeroCuotas?: number // Calculado: total / valorCuota
 }

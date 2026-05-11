@@ -1,0 +1,43 @@
+{
+	"folders": [
+		{
+			"path": "../../cdr-landing"
+		},
+		{
+			"path": "../../bitacoraac"
+		},
+		{
+			"path": "../gym_cdu"
+		},
+		{
+			"path": "../../stock_cultura"
+		},
+		{
+			"path": "../../horarios"
+		},
+		{
+			"path": "../stock_cdu"
+		},
+		{
+			"path": "../../bitacoraac - copia"
+		},
+		{
+			"path": "../horarios_CDU"
+		},
+		{
+			"path": "../../asistencias_area"
+		},
+		{
+			"path": "../prestamos_escenarios"
+		},
+		{
+			"path": "../../canal_comunicaciones"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"typescript.autoClosingTags": false
+	}
+}

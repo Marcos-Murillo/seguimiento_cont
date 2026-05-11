@@ -70,75 +70,202 @@ function Field({ icon: Icon, label, value }: { icon?: React.ElementType; label: 
 }
 
 // ── Panel detalle usuario aprobado ───────────────────────────────────────────
-function UserDetailPanel({ user, open, onClose }: { user: ApprovedUser | null; open: boolean; onClose: () => void }) {
+function UserDetailPanel({ 
+  user, 
+  open, 
+  onClose,
+  onDelete,
+  onToggleStatus 
+}: { 
+  user: ApprovedUser | null
+  open: boolean
+  onClose: () => void
+  onDelete: (userId: string) => void
+  onToggleStatus: (userId: string, newStatus: string) => void
+}) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showToggleDialog, setShowToggleDialog] = useState(false)
+  
   if (!user) return null
+  
+  const isActive = user.approvalStatus === 'approved'
+  
   return (
-    <SidePanel open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <SidePanelContent>
-        <SidePanelHeader>
-          <div className="flex items-center gap-3 pr-8">
-            <Avatar className="h-12 w-12">
-              <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
-                {getInitials(user.name)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <SidePanelTitle className="text-xl font-bold">{user.name}</SidePanelTitle>
-              <SidePanelDescription className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400 text-xs">
-                  Aprobado
-                </Badge>
-                <span className="text-xs text-muted-foreground font-mono">{user.cedula}</span>
-              </SidePanelDescription>
+    <>
+      <SidePanel open={open} onOpenChange={v => { if (!v) onClose() }}>
+        <SidePanelContent>
+          <SidePanelHeader>
+            <div className="flex items-center gap-3 pr-8">
+              <Avatar className="h-12 w-12">
+                <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
+                  {getInitials(user.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <SidePanelTitle className="text-xl font-bold">{user.name}</SidePanelTitle>
+                <SidePanelDescription className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className={isActive 
+                    ? "bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400 text-xs"
+                    : "bg-red-500/10 text-red-700 border-red-400/30 dark:text-red-400 text-xs"
+                  }>
+                    {isActive ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground font-mono">{user.cedula}</span>
+                </SidePanelDescription>
+              </div>
+            </div>
+          </SidePanelHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                <Users className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-bold uppercase tracking-wider">Información Personal</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 px-1">
+                <Field icon={Hash} label="Cédula" value={user.cedula} />
+                <Field icon={Mail} label="Correo electrónico" value={user.email} />
+                <Field icon={ShieldCheck} label="Rol" value={user.role === 'contractor' ? 'Contratista' : user.role} />
+                <Field icon={ShieldCheck} label="Estado" value={
+                  <Badge variant="outline" className={isActive
+                    ? "bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400 text-xs"
+                    : "bg-red-500/10 text-red-700 border-red-400/30 dark:text-red-400 text-xs"
+                  }>
+                    {isActive ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                } />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 text-purple-700 dark:text-purple-400">
+                <Calendar className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-bold uppercase tracking-wider">Actividad</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 px-1">
+                <Field icon={Calendar} label="Fecha de registro" value={formatDate(user.createdAt)} />
+                <Field icon={Calendar} label="Último acceso" value={formatDate(user.lastLogin)} />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-700 dark:text-orange-400">
+                <ShieldCheck className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-bold uppercase tracking-wider">Acciones</span>
+              </div>
+              <div className="space-y-2 px-1">
+                <Button
+                  variant="outline"
+                  className={isActive 
+                    ? "w-full justify-start text-orange-700 hover:bg-orange-500/10 border-orange-400/30 dark:text-orange-400"
+                    : "w-full justify-start text-green-700 hover:bg-green-500/10 border-green-400/30 dark:text-green-400"
+                  }
+                  onClick={() => setShowToggleDialog(true)}
+                >
+                  {isActive ? (
+                    <>
+                      <UserX className="mr-2 h-4 w-4" />
+                      Desactivar usuario
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="mr-2 h-4 w-4" />
+                      Activar usuario
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-destructive hover:bg-destructive/10 border-destructive/30"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Eliminar usuario
+                </Button>
+              </div>
             </div>
           </div>
-        </SidePanelHeader>
+        </SidePanelContent>
+      </SidePanel>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-400">
-              <Users className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-bold uppercase tracking-wider">Información Personal</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4 px-1">
-              <Field icon={Hash} label="Cédula" value={user.cedula} />
-              <Field icon={Mail} label="Correo electrónico" value={user.email} />
-              <Field icon={ShieldCheck} label="Rol" value={user.role === 'contractor' ? 'Contratista' : user.role} />
-              <Field icon={ShieldCheck} label="Estado" value={
-                <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400 text-xs">
-                  {user.approvalStatus === 'approved' ? 'Aprobado' : user.approvalStatus}
-                </Badge>
-              } />
-            </div>
-          </div>
+      {/* Dialog confirmar eliminación */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar usuario</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de eliminar a <strong>{user.name}</strong>? Esta acción no se puede deshacer y se perderán todos los datos asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                onDelete(user.id)
+                setShowDeleteDialog(false)
+                onClose()
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-          <Separator />
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 text-purple-700 dark:text-purple-400">
-              <Calendar className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-bold uppercase tracking-wider">Actividad</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4 px-1">
-              <Field icon={Calendar} label="Fecha de registro" value={formatDate(user.createdAt)} />
-              <Field icon={Calendar} label="Último acceso" value={formatDate(user.lastLogin)} />
-            </div>
-          </div>
-        </div>
-      </SidePanelContent>
-    </SidePanel>
+      {/* Dialog confirmar cambio de estado */}
+      <AlertDialog open={showToggleDialog} onOpenChange={setShowToggleDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isActive ? 'Desactivar usuario' : 'Activar usuario'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isActive 
+                ? `¿Desactivar a ${user.name}? No podrá acceder al sistema hasta que sea reactivado.`
+                : `¿Activar a ${user.name}? Podrá acceder nuevamente al sistema.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onToggleStatus(user.id, isActive ? 'inactive' : 'approved')
+                setShowToggleDialog(false)
+                onClose()
+              }}
+            >
+              {isActive ? 'Desactivar' : 'Activar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
 // ── Panel lista usuarios aprobados ───────────────────────────────────────────
-function ApprovedUsersPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+function ApprovedUsersPanel({ 
+  open, 
+  onClose,
+  onRefresh 
+}: { 
+  open: boolean
+  onClose: () => void
+  onRefresh: () => void
+}) {
   const [users, setUsers] = useState<ApprovedUser[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<ApprovedUser | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
-  useEffect(() => {
+  const loadUsers = useCallback(() => {
     if (!open) return
     setLoading(true)
     fetch('/api/usuarios')
@@ -147,6 +274,40 @@ function ApprovedUsersPanel({ open, onClose }: { open: boolean; onClose: () => v
       .catch(() => setUsers([]))
       .finally(() => setLoading(false))
   }, [open])
+
+  useEffect(() => {
+    loadUsers()
+  }, [loadUsers])
+
+  const handleDelete = async (userId: string) => {
+    try {
+      await fetch('/api/usuarios', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId })
+      })
+      setUsers(prev => prev.filter(u => u.id !== userId))
+      onRefresh()
+    } catch (err) {
+      console.error('Error al eliminar usuario:', err)
+    }
+  }
+
+  const handleToggleStatus = async (userId: string, newStatus: string) => {
+    try {
+      await fetch('/api/usuarios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, approvalStatus: newStatus })
+      })
+      setUsers(prev => prev.map(u => 
+        u.id === userId ? { ...u, approvalStatus: newStatus } : u
+      ))
+      onRefresh()
+    } catch (err) {
+      console.error('Error al actualizar estado:', err)
+    }
+  }
 
   const filtered = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -202,8 +363,12 @@ function ApprovedUsersPanel({ open, onClose }: { open: boolean; onClose: () => v
                       <p className="text-sm font-semibold truncate">{u.name}</p>
                       <p className="text-xs text-muted-foreground font-mono">{u.cedula || u.email}</p>
                     </div>
-                    <Badge variant="outline" className="ml-auto shrink-0 bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400 text-[10px]">
-                      Activo
+                    <Badge variant="outline" className={
+                      u.approvalStatus === 'approved'
+                        ? "ml-auto shrink-0 bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400 text-[10px]"
+                        : "ml-auto shrink-0 bg-red-500/10 text-red-700 border-red-400/30 dark:text-red-400 text-[10px]"
+                    }>
+                      {u.approvalStatus === 'approved' ? 'Activo' : 'Inactivo'}
                     </Badge>
                   </button>
                 ))}
@@ -217,6 +382,8 @@ function ApprovedUsersPanel({ open, onClose }: { open: boolean; onClose: () => v
         user={selected}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
+        onDelete={handleDelete}
+        onToggleStatus={handleToggleStatus}
       />
     </>
   )
@@ -432,7 +599,11 @@ export default function AprobacionesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <ApprovedUsersPanel open={approvedPanelOpen} onClose={() => setApprovedPanelOpen(false)} />
+      <ApprovedUsersPanel 
+        open={approvedPanelOpen} 
+        onClose={() => setApprovedPanelOpen(false)}
+        onRefresh={load}
+      />
     </div>
   )
 }

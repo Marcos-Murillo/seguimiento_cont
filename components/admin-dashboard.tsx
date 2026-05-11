@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { type User, type Contractor } from '@/lib/types'
+import { type User, type Contractor, type EstadoCuota } from '@/lib/types'
 import { getContractors } from '@/lib/firebase-db'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   Users, DollarSign, Clock, CheckCircle2, XCircle, AlertTriangle,
   FileWarning, CalendarClock, TrendingUp, ShieldAlert, FileX, Link,
-  BadgeCheck, CircleDot,
+  BadgeCheck, CircleDot, FileText, FileCheck, Send, Building,
 } from 'lucide-react'
+import { ESTADO_CUOTA_LABELS } from '@/lib/estado-utils'
 
 interface AdminDashboardProps { user: User }
 
@@ -42,20 +43,22 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     </div>
   )
 
-  const totalActivos      = c.filter(x => x.estadoCuenta === 'activo').reduce((s, x) => s + x.total, 0)
-  const totalPagado       = c.filter(x => x.estadoCuota === 'pagado').reduce((s, x) => s + x.valorCuota, 0)
-  const totalPendiente    = c.filter(x => x.estadoCuota === 'pendiente' || x.estadoCuota === 'en_proceso').reduce((s, x) => s + x.valorCuota, 0)
-  const valorPromCuota    = c.length ? Math.round(c.reduce((s, x) => s + x.valorCuota, 0) / c.length) : 0
-  const totalComprometido = c.reduce((s, x) => s + x.total, 0)
+  const totalActivos      = c.filter(x => x.estadoCuenta === 'activo').reduce((s, x) => s + Number(x.total), 0)
+  const totalPagado       = c.filter(x => x.estadoCuota === 'pagado').reduce((s, x) => s + Number(x.valorCuota), 0)
+  const totalPendiente    = c.filter(x => x.estadoCuota !== 'pagado').reduce((s, x) => s + Number(x.valorCuota), 0)
+  const valorPromCuota    = c.length ? Math.round(c.reduce((s, x) => s + Number(x.valorCuota), 0) / c.length) : 0
+  const totalComprometido = c.reduce((s, x) => s + Number(x.total), 0)
 
-  const porEstado = {
-    pendiente:  c.filter(x => x.estadoCuota === 'pendiente').length,
-    en_proceso: c.filter(x => x.estadoCuota === 'en_proceso').length,
-    pagado:     c.filter(x => x.estadoCuota === 'pagado').length,
-    rechazado:  c.filter(x => x.estadoCuota === 'rechazado').length,
+  const porEstado: Record<EstadoCuota, number> = {
+    pendiente_informe_contratista: c.filter(x => x.estadoCuota === 'pendiente_informe_contratista').length,
+    pendiente_informe_supervision: c.filter(x => x.estadoCuota === 'pendiente_informe_supervision').length,
+    gestion_documentos_pago: c.filter(x => x.estadoCuota === 'gestion_documentos_pago').length,
+    enviado_presupuesto: c.filter(x => x.estadoCuota === 'enviado_presupuesto').length,
+    remitido_pagaduria: c.filter(x => x.estadoCuota === 'remitido_pagaduria').length,
+    pagado: c.filter(x => x.estadoCuota === 'pagado').length,
   }
-  const alDia    = c.filter(x => x.estadoCuota === 'pagado' || x.estadoCuota === 'en_proceso').length
-  const atrasado = c.filter(x => x.estadoCuota === 'pendiente' || x.estadoCuota === 'rechazado').length
+  const alDia    = c.filter(x => x.estadoCuota === 'pagado' || x.estadoCuota === 'remitido_pagaduria').length
+  const atrasado = c.filter(x => x.estadoCuota === 'pendiente_informe_contratista' || x.estadoCuota === 'pendiente_informe_supervision').length
   const pctAlDia = c.length ? Math.round((alDia / c.length) * 100) : 0
 
   const sinInforme    = c.filter(x => !x.informeSupervision || x.informeSupervision === 'Pendiente').length
@@ -68,7 +71,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     const diff = diffDays(d)
     return diff >= 0 && diff <= 7
   })
-  const rechazados  = c.filter(x => x.estadoCuota === 'rechazado')
   const suspendidos = c.filter(x => x.estadoCuenta === 'suspendido')
 
   const todasAprobadas    = c.filter(x => Object.values(x.procesoPago ?? {}).every(v => v.toLowerCase() === 'aprobado' || v.toLowerCase() === 'n/a')).length
@@ -84,10 +86,10 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
         <p className="text-sm text-muted-foreground mt-0.5">Resumen general del sistema de seguimiento de contratistas</p>
       </div>
 
-      {(proximosVencer.length > 0 || rechazados.length > 0 || suspendidos.length > 0 || pendingCount > 0) && (
+      {(proximosVencer.length > 0 || suspendidos.length > 0 || pendingCount > 0) && (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Alertas</p>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {proximosVencer.length > 0 && (
               <div className="flex items-start gap-3 p-3 rounded-lg border border-yellow-400/40 bg-yellow-500/10">
                 <CalendarClock className="h-5 w-5 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
@@ -97,20 +99,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                   <div className="mt-1 flex flex-wrap gap-1">
                     {proximosVencer.map(x => (
                       <Badge key={x.id} variant="outline" className="text-[10px] border-yellow-400/40 text-yellow-700 dark:text-yellow-400">{x.nombre.split(' ')[0]}</Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            {rechazados.length > 0 && (
-              <div className="flex items-start gap-3 p-3 rounded-lg border border-red-400/40 bg-red-500/10">
-                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">Pagos rechazados</p>
-                  <p className="text-xs text-muted-foreground">{rechazados.length} contrato(s) requieren atención inmediata</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {rechazados.map(x => (
-                      <Badge key={x.id} variant="outline" className="text-[10px] border-red-400/40 text-red-700 dark:text-red-400">{x.nombre.split(' ')[0]}</Badge>
                     ))}
                   </div>
                 </div>
@@ -158,11 +146,13 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado de Pagos</p>
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <StatCard icon={Clock} label="Pendientes" value={porEstado.pendiente} sub="cuotas" color="text-yellow-600 dark:text-yellow-400" />
-          <StatCard icon={CircleDot} label="En proceso" value={porEstado.en_proceso} sub="cuotas" color="text-blue-600 dark:text-blue-400" />
-          <StatCard icon={CheckCircle2} label="Pagados" value={porEstado.pagado} sub="cuotas" color="text-green-600 dark:text-green-400" />
-          <StatCard icon={XCircle} label="Rechazados" value={porEstado.rechazado} sub="cuotas" color="text-red-600 dark:text-red-400" />
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+          <StatCard icon={FileText} label={ESTADO_CUOTA_LABELS.pendiente_informe_contratista} value={porEstado.pendiente_informe_contratista} sub="cuotas" color="text-yellow-600 dark:text-yellow-400" />
+          <StatCard icon={FileCheck} label={ESTADO_CUOTA_LABELS.pendiente_informe_supervision} value={porEstado.pendiente_informe_supervision} sub="cuotas" color="text-orange-600 dark:text-orange-400" />
+          <StatCard icon={CircleDot} label={ESTADO_CUOTA_LABELS.gestion_documentos_pago} value={porEstado.gestion_documentos_pago} sub="cuotas" color="text-blue-600 dark:text-blue-400" />
+          <StatCard icon={Send} label={ESTADO_CUOTA_LABELS.enviado_presupuesto} value={porEstado.enviado_presupuesto} sub="cuotas" color="text-indigo-600 dark:text-indigo-400" />
+          <StatCard icon={Building} label={ESTADO_CUOTA_LABELS.remitido_pagaduria} value={porEstado.remitido_pagaduria} sub="cuotas" color="text-purple-600 dark:text-purple-400" />
+          <StatCard icon={CheckCircle2} label={ESTADO_CUOTA_LABELS.pagado} value={porEstado.pagado} sub="cuotas" color="text-green-600 dark:text-green-400" />
         </div>
         <div className="p-4 rounded-lg border border-border/50 bg-card">
           <div className="flex items-center justify-between mb-2">

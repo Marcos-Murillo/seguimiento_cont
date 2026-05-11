@@ -1,9 +1,10 @@
 'use client'
 
-import { type CuotaHistorial } from '@/lib/types'
+import { type CuotaHistorial, type EstadoCuota } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { X, History, CreditCard, CheckCircle2, XCircle, Clock, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getEstadoCuotaLabel, getEstadoCuotaColor } from '@/lib/estado-utils'
 
 interface PaymentHistoryPanelProps {
   open: boolean
@@ -12,16 +13,10 @@ interface PaymentHistoryPanelProps {
   nombreContratista: string
 }
 
-const statusMap: Record<string, { label: string; className: string }> = {
-  pendiente:  { label: 'Pendiente',  className: 'bg-yellow-500/15 text-yellow-700 border-yellow-400/40 dark:text-yellow-400' },
-  en_proceso: { label: 'En Proceso', className: 'bg-blue-500/15 text-blue-700 border-blue-400/40 dark:text-blue-400' },
-  pagado:     { label: 'Pagado',     className: 'bg-green-500/15 text-green-700 border-green-400/40 dark:text-green-400' },
-  rechazado:  { label: 'Rechazado',  className: 'bg-red-500/15 text-red-700 border-red-400/40 dark:text-red-400' },
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = statusMap[status] || { label: status, className: 'bg-muted text-muted-foreground' }
-  return <Badge variant="outline" className={`text-xs font-semibold px-2.5 py-0.5 ${cfg.className}`}>{cfg.label}</Badge>
+function StatusBadge({ status }: { status: EstadoCuota }) {
+  const label = getEstadoCuotaLabel(status)
+  const className = getEstadoCuotaColor(status)
+  return <Badge variant="outline" className={`text-xs font-semibold px-2.5 py-0.5 ${className}`}>{label}</Badge>
 }
 
 function ProcessIcon({ status }: { status: string }) {
@@ -126,6 +121,25 @@ export function PaymentHistoryPanel({ open, onClose, historial, nombreContratist
                     ))}
                   </div>
                 </div>
+
+                {/* Fecha de actualización */}
+                {cuota.fechaActualizacion && (
+                  <div className="pt-2 border-t border-border/50">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground">Actualizado</p>
+                    </div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {new Date(cuota.fechaActualizacion).toLocaleString('es-CO', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                )}
 
                 {cuota.observaciones && (
                   <div>

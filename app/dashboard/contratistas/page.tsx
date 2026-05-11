@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { type Contractor } from '@/lib/types'
+import { type Contractor, type EstadoCuota } from '@/lib/types'
 import { getContractors, createContractor, updateContractor, deleteContractor } from '@/lib/firebase-db'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -22,15 +22,18 @@ import {
   FolderOpen, Landmark, MessageSquare, Hash, Calendar, UserCheck2,
   Link2, ShieldCheck, Receipt, History,
 } from 'lucide-react'
+import { getEstadoCuotaLabel, getEstadoCuotaColor, ESTADO_CUOTA_LABELS } from '@/lib/estado-utils'
 
 void 0 // removed mock imports
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string, isEstadoCuota = false) {
+  if (isEstadoCuota) {
+    const label = getEstadoCuotaLabel(status as EstadoCuota)
+    const className = getEstadoCuotaColor(status as EstadoCuota)
+    return <Badge variant="outline" className={className}>{label}</Badge>
+  }
+  
   const map: Record<string, { label: string; className: string }> = {
-    pendiente:  { label: 'Pendiente',  className: 'bg-yellow-500/10 text-yellow-700 border-yellow-400/30 dark:text-yellow-400' },
-    en_proceso: { label: 'En Proceso', className: 'bg-blue-500/10 text-blue-700 border-blue-400/30 dark:text-blue-400' },
-    pagado:     { label: 'Pagado',     className: 'bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400' },
-    rechazado:  { label: 'Rechazado',  className: 'bg-red-500/10 text-red-700 border-red-400/30 dark:text-red-400' },
     activo:     { label: 'Activo',     className: 'bg-green-500/10 text-green-700 border-green-400/30 dark:text-green-400' },
     inactivo:   { label: 'Inactivo',   className: 'bg-muted text-muted-foreground border-border' },
     suspendido: { label: 'Suspendido', className: 'bg-red-500/10 text-red-700 border-red-400/30 dark:text-red-400' },
@@ -146,7 +149,7 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
                 <span className="text-muted-foreground">·</span>
                 {getStatusBadge(form.estadoCuenta)}
                 <span className="text-muted-foreground">·</span>
-                {getStatusBadge(form.estadoCuota)}
+                {getStatusBadge(form.estadoCuota, true)}
               </SidePanelDescription>
             </div>
           </div>
@@ -181,7 +184,29 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
             <div className="space-y-3">
               <SH icon={CreditCard} title="Estado de Pagos" color="bg-green-500/10 text-green-700 dark:text-green-400" />
               <div className="grid grid-cols-3 gap-4 px-1">
-                <F icon={Hash} label="Cuota No." value={form.cuotaNo} field="cuotaNo" />
+                {/* Campo Cuota No. con Select */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">Cuota No.</p>
+                  </div>
+                  {editing ? (
+                    <Select value={String(form.cuotaNo)} onValueChange={v => set('cuotaNo', Number(v))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: form.numeroCuotas || Math.ceil(form.total / form.valorCuota) }, (_, i) => i + 1).map(n => (
+                          <SelectItem key={n} value={String(n)}>
+                            Cuota {n}
+                            {n === form.cuotaNo && ' (Actual)'}
+                            {form.historialCuotas?.some(h => h.cuotaNo === n && h.estadoCuota === 'pagado') && ' ✓'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.cuotaNo}</div>
+                  )}
+                </div>
                 <F icon={CreditCard} label="Valor Cuota" value={form.valorCuota.toLocaleString('es-CO')} field="valorCuota" />
                 <F icon={CreditCard} label="Total" value={form.total.toLocaleString('es-CO')} field="total" />
                 <div>
@@ -189,9 +214,13 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
                   {editing ? (
                     <Select value={form.estadoCuota} onValueChange={v => set('estadoCuota', v)}>
                       <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                      <SelectContent>{['pendiente','en_proceso','pagado','rechazado'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>
+                        {(Object.keys(ESTADO_CUOTA_LABELS) as EstadoCuota[]).map(s => 
+                          <SelectItem key={s} value={s}>{ESTADO_CUOTA_LABELS[s]}</SelectItem>
+                        )}
+                      </SelectContent>
                     </Select>
-                  ) : <div className="text-base font-semibold">{getStatusBadge(form.estadoCuota)}</div>}
+                  ) : <div className="text-base font-semibold">{getStatusBadge(form.estadoCuota, true)}</div>}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground font-medium mb-1">Estado Cuenta</p>
@@ -217,9 +246,49 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
                 <F icon={FileText} label="DEUV" value={form.deuv} field="deuv" />
                 <F icon={Calendar} label="Fecha Elaboración DFUV" value={form.fechaElaboracionDFUV} field="fechaElaboracionDFUV" />
                 <F icon={Calendar} label="Fecha Aprobación" value={form.fechaAprobacion || (editing ? '' : 'Pendiente')} field="fechaAprobacion" />
-                <F icon={Hash} label="No. CP" value={form.seguimientoSP.noCP} />
-                <F icon={Hash} label="No. SP" value={form.seguimientoSP.noSP} />
-                <F icon={Calendar} label="Fecha Elaboración SP" value={form.seguimientoSP.fechaElaboracion} />
+                
+                {/* No. CP - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">No. CP</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.seguimientoSP.noCP} 
+                      onChange={e => setForm(prev => prev ? { ...prev, seguimientoSP: { ...prev.seguimientoSP, noCP: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.seguimientoSP.noCP || '—'}</div>
+                  )}
+                </div>
+
+                {/* No. SP - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">No. SP</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.seguimientoSP.noSP} 
+                      onChange={e => setForm(prev => prev ? { ...prev, seguimientoSP: { ...prev.seguimientoSP, noSP: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.seguimientoSP.noSP || '—'}</div>
+                  )}
+                </div>
+
+                {/* Fecha Elaboración SP - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">Fecha Elaboración SP</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.seguimientoSP.fechaElaboracion} 
+                      onChange={e => setForm(prev => prev ? { ...prev, seguimientoSP: { ...prev.seguimientoSP, fechaElaboracion: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.seguimientoSP.fechaElaboracion || '—'}</div>
+                  )}
+                </div>
+
                 <F icon={Calendar} label="Fecha Envío Presupuesto" value={form.fechaEnvioPresupuesto} field="fechaEnvioPresupuesto" />
                 <F icon={Calendar} label="Fecha Entrega" value={form.fechaEntrega} field="fechaEntrega" />
               </div>
@@ -230,16 +299,53 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
             <div className="space-y-3">
               <SH icon={Landmark} title="Contratación CRD" color="bg-indigo-500/10 text-indigo-700 dark:text-indigo-400" />
               <div className="grid grid-cols-3 gap-4 px-1">
-                <F icon={Calendar} label="Fecha Remisión de Informes" value={form.contratacionCRD.fechaRemisionInformes} />
-                <F icon={FileText} label="DOC" value={form.contratacionCRD.doc} />
-                <F icon={Link2} label="Enlace" span3>
-                  {form.contratacionCRD.enlace ? (
+                {/* Fecha Remisión de Informes - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">Fecha Remisión de Informes</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.contratacionCRD.fechaRemisionInformes} 
+                      onChange={e => setForm(prev => prev ? { ...prev, contratacionCRD: { ...prev.contratacionCRD, fechaRemisionInformes: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.contratacionCRD.fechaRemisionInformes || '—'}</div>
+                  )}
+                </div>
+
+                {/* DOC - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">DOC</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.contratacionCRD.doc} 
+                      onChange={e => setForm(prev => prev ? { ...prev, contratacionCRD: { ...prev.contratacionCRD, doc: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.contratacionCRD.doc || '—'}</div>
+                  )}
+                </div>
+
+                {/* Enlace - ahora editable */}
+                <div className="col-span-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">Enlace</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.contratacionCRD.enlace} 
+                      onChange={e => setForm(prev => prev ? { ...prev, contratacionCRD: { ...prev.contratacionCRD, enlace: e.target.value } } : prev)} 
+                      placeholder="https://..." />
+                  ) : form.contratacionCRD.enlace ? (
                     <a href={form.contratacionCRD.enlace} target="_blank" rel="noopener noreferrer"
                       className="text-primary hover:underline inline-flex items-center gap-1.5 text-base font-semibold">
                       Ver documento <ExternalLink className="h-4 w-4" />
                     </a>
-                  ) : <span>—</span>}
-                </F>
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">—</div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -248,9 +354,47 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
             <div className="space-y-3">
               <SH icon={FolderOpen} title="Documentos Base — Póliza" color="bg-cyan-500/10 text-cyan-700 dark:text-cyan-400" />
               <div className="grid grid-cols-3 gap-4 px-1">
-                <F icon={ShieldCheck} label="Póliza" value={form.documentosBase.poliza} />
-                <F icon={FolderOpen} label="Evidencias" value={form.documentosBase.evidencias} />
-                <F icon={ClipboardList} label="Pactadas" value={form.documentosBase.pactadas} />
+                {/* Póliza - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">Póliza</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.documentosBase.poliza} 
+                      onChange={e => setForm(prev => prev ? { ...prev, documentosBase: { ...prev.documentosBase, poliza: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.documentosBase.poliza || '—'}</div>
+                  )}
+                </div>
+
+                {/* Evidencias - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">Evidencias</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.documentosBase.evidencias} 
+                      onChange={e => setForm(prev => prev ? { ...prev, documentosBase: { ...prev.documentosBase, evidencias: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.documentosBase.evidencias || '—'}</div>
+                  )}
+                </div>
+
+                {/* Pactadas - ahora editable */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground font-medium">Pactadas</p>
+                  </div>
+                  {editing ? (
+                    <Input className="h-8 text-sm" value={form.documentosBase.pactadas} 
+                      onChange={e => setForm(prev => prev ? { ...prev, documentosBase: { ...prev.documentosBase, pactadas: e.target.value } } : prev)} />
+                  ) : (
+                    <div className="text-base font-semibold text-foreground leading-snug">{form.documentosBase.pactadas || '—'}</div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -288,7 +432,16 @@ function ContractorDialog({ contractor, mode, open, onOpenChange, onSave }: {
         {editing && (
           <SidePanelFooter>
             <Button variant="outline" onClick={() => { setEditing(false); setForm(contractor) }}>Cancelar</Button>
-            <Button onClick={() => { onSave?.(form); setEditing(false); onOpenChange(false) }}>Guardar actualización</Button>
+            <Button onClick={async () => { 
+              try {
+                await onSave?.(form)
+                setEditing(false)
+                onOpenChange(false)
+              } catch (error) {
+                // El error ya se mostró en handleSave, solo evitamos cerrar el dialog
+                console.error('Error al guardar:', error)
+              }
+            }}>Guardar actualización</Button>
           </SidePanelFooter>
         )}
       </SidePanelContent>
@@ -314,10 +467,15 @@ function NewContractDialog({ open, onOpenChange, onSave }: {
 
   const set = (field: keyof FormData, value: unknown) => setForm(prev => ({ ...prev, [field]: value }))
 
-  const handleSave = () => {
-    onSave({ ...form, id: Date.now().toString(), no: 0 })
-    setForm(emptyForm())
-    onOpenChange(false)
+  const handleSave = async () => {
+    try {
+      await onSave({ ...form, id: Date.now().toString(), no: 0 })
+      setForm(emptyForm())
+      onOpenChange(false)
+    } catch (error) {
+      // El error ya se mostró en handleNew, solo evitamos cerrar el dialog
+      console.error('Error al crear:', error)
+    }
   }
 
   // Helper para renderizar campos — NO es un componente React, es una función que devuelve JSX
@@ -386,7 +544,11 @@ function NewContractDialog({ open, onOpenChange, onSave }: {
                   <Label className="text-[10px] text-muted-foreground">Estado Cuota</Label>
                   <Select value={form.estadoCuota} onValueChange={v => set('estadoCuota', v)}>
                     <SelectTrigger className="h-7 text-sm mt-0.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>{['pendiente','en_proceso','pagado','rechazado'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {(Object.keys(ESTADO_CUOTA_LABELS) as EstadoCuota[]).map(s => 
+                        <SelectItem key={s} value={s}>{ESTADO_CUOTA_LABELS[s]}</SelectItem>
+                      )}
+                    </SelectContent>
                   </Select>
                 </div>
                 <div>
@@ -466,22 +628,49 @@ export default function ContratistasPage() {
   const openEdit = (c: Contractor) => { setSelectedContractor(c); setDialogMode('edit'); setDialogOpen(true) }
 
   const handleSave = async (updated: Contractor) => {
-    // Pasamos el contratista anterior para que updateContractor pueda construir el historial
-    const previous = contractors.find(c => c.id === updated.id)
-    await updateContractor(updated.id, updated, previous)
-    setContractors(prev => prev.map(c => c.id === updated.id ? updated : c))
+    try {
+      // Pasamos el contratista anterior para que updateContractor pueda construir el historial y validar
+      const previous = contractors.find(c => c.id === updated.id)
+      await updateContractor(updated.id, updated, previous)
+      
+      // Recargar los datos desde Firebase para obtener los cambios automáticos
+      await loadContractors()
+      
+      // Mostrar mensaje de éxito
+      alert('Contrato actualizado exitosamente')
+    } catch (error) {
+      // Mostrar error de validación al usuario
+      const errorMessage = error instanceof Error ? error.message : 'Error al actualizar el contrato'
+      alert(errorMessage)
+      throw error // Re-lanzar para que el dialog no se cierre
+    }
   }
 
   const handleNew = async (c: Contractor) => {
-    const { id: _id, ...data } = c
-    void _id
-    const newId = await createContractor(data)
-    setContractors(prev => [...prev, { ...c, id: newId }])
+    try {
+      const { id: _id, ...data } = c
+      void _id
+      const newId = await createContractor(data)
+      setContractors(prev => [...prev, { ...c, id: newId }])
+      alert('Contrato creado exitosamente')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al crear el contrato'
+      alert(errorMessage)
+      throw error
+    }
   }
 
   const handleDelete = async (id: string) => {
-    await deleteContractor(id)
-    setContractors(prev => prev.filter(c => c.id !== id))
+    if (!confirm('¿Está seguro de eliminar este contrato?')) return
+    
+    try {
+      await deleteContractor(id)
+      setContractors(prev => prev.filter(c => c.id !== id))
+      alert('Contrato eliminado exitosamente')
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al eliminar el contrato'
+      alert(errorMessage)
+    }
   }
 
   return (
@@ -516,10 +705,9 @@ export default function ContratistasPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="en_proceso">En Proceso</SelectItem>
-                  <SelectItem value="pagado">Pagado</SelectItem>
-                  <SelectItem value="rechazado">Rechazado</SelectItem>
+                  {(Object.keys(ESTADO_CUOTA_LABELS) as EstadoCuota[]).map(s => 
+                    <SelectItem key={s} value={s}>{ESTADO_CUOTA_LABELS[s]}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -561,7 +749,7 @@ export default function ContratistasPage() {
                   <TableCell className="font-mono text-xs">{c.contratoNo}</TableCell>
                   <TableCell className="text-center">{c.cuotaNo}</TableCell>
                   <TableCell className="text-right">${c.total.toLocaleString('es-CO')}</TableCell>
-                  <TableCell>{getStatusBadge(c.estadoCuota)}</TableCell>
+                  <TableCell>{getStatusBadge(c.estadoCuota, true)}</TableCell>
                   <TableCell className="text-xs">{c.fechaEntrega}</TableCell>
                   <TableCell className="text-xs">{c.fechaEnvioPresupuesto}</TableCell>
                   <TableCell>

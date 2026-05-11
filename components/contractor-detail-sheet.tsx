@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { type Contractor } from '@/lib/types'
+import { type Contractor, type EstadoCuota } from '@/lib/types'
 import {
   SidePanel,
   SidePanelContent,
@@ -19,6 +19,7 @@ import {
   CheckCircle2, XCircle, Clock, Hash, Calendar,
   UserCheck, Link2, ShieldCheck, Receipt, History,
 } from 'lucide-react'
+import { getEstadoCuotaLabel, getEstadoCuotaColor } from '@/lib/estado-utils'
 
 interface ContractorDetailSheetProps {
   contractor: Contractor | null
@@ -27,16 +28,18 @@ interface ContractorDetailSheetProps {
 }
 
 const statusMap: Record<string, { label: string; className: string }> = {
-  pendiente:  { label: 'Pendiente',  className: 'bg-yellow-500/15 text-yellow-700 border-yellow-400/40 dark:text-yellow-400' },
-  en_proceso: { label: 'En Proceso', className: 'bg-blue-500/15 text-blue-700 border-blue-400/40 dark:text-blue-400' },
-  pagado:     { label: 'Pagado',     className: 'bg-green-500/15 text-green-700 border-green-400/40 dark:text-green-400' },
-  rechazado:  { label: 'Rechazado',  className: 'bg-red-500/15 text-red-700 border-red-400/40 dark:text-red-400' },
   activo:     { label: 'Activo',     className: 'bg-green-500/15 text-green-700 border-green-400/40 dark:text-green-400' },
   inactivo:   { label: 'Inactivo',   className: 'bg-muted text-muted-foreground border-border' },
   suspendido: { label: 'Suspendido', className: 'bg-red-500/15 text-red-700 border-red-400/40 dark:text-red-400' },
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, isEstadoCuota = false }: { status: string; isEstadoCuota?: boolean }) {
+  if (isEstadoCuota) {
+    const label = getEstadoCuotaLabel(status as EstadoCuota)
+    const className = getEstadoCuotaColor(status as EstadoCuota)
+    return <Badge variant="outline" className={`text-xs font-semibold px-2.5 py-0.5 ${className}`}>{label}</Badge>
+  }
+  
   const cfg = statusMap[status] || { label: status, className: 'bg-muted text-muted-foreground' }
   return <Badge variant="outline" className={`text-xs font-semibold px-2.5 py-0.5 ${cfg.className}`}>{cfg.label}</Badge>
 }
@@ -114,7 +117,7 @@ export function ContractorDetailSheet({ contractor, open, onOpenChange }: Contra
                 <span className="text-muted-foreground">·</span>
                 <StatusBadge status={contractor.estadoCuenta} />
                 <span className="text-muted-foreground">·</span>
-                <StatusBadge status={contractor.estadoCuota} />
+                <StatusBadge status={contractor.estadoCuota} isEstadoCuota />
               </SidePanelDescription>
             </div>
           </div>
@@ -161,7 +164,7 @@ export function ContractorDetailSheet({ contractor, open, onOpenChange }: Contra
                     {contractor.revisado ? 'Sí' : 'No'}
                   </Badge>
                 } />
-                <Field label="Estado Cuota" value={<StatusBadge status={contractor.estadoCuota} />} />
+                <Field label="Estado Cuota" value={<StatusBadge status={contractor.estadoCuota} isEstadoCuota />} />
                 <Field label="Estado Cuenta" value={<StatusBadge status={contractor.estadoCuenta} />} />
               </div>
             </div>
