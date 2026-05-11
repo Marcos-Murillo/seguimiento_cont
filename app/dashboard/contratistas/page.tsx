@@ -58,7 +58,7 @@ const emptyForm = (): FormData => ({
   consolidacionDocumentos: { fechaElaboracion: '', fecha: '' },
   fechaEnvioPresupuesto: '', fechaEntrega: '', fechaElaboracionDFUV: '', fechaAprobacion: '',
   contratacionCRD: { fechaRemisionInformes: '', doc: '', enlace: '' },
-  supervisor: '', estadoCuota: 'pendiente', estadoCuenta: 'activo',
+  supervisor: '', estadoCuota: 'pendiente_informe_contratista', estadoCuenta: 'activo',
   observaciones: '', revisado: false, valorCuota: 0,
   documentosBase: { poliza: '', evidencias: '', pactadas: '' },
   procesoPago: { cuenta979001: '', cuenta979003: '', cuenta979005: '', cuenta979006: '' },
