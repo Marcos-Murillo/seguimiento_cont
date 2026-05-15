@@ -11,7 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   LayoutDashboard,
   Users,
@@ -117,12 +117,29 @@ export function DashboardSidebar({ user, open = false, onClose }: DashboardSideb
 
   // Sidebar móvil (Sheet desplegable)
   const MobileSidebar = () => (
-    <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="left" className="w-64 p-0">
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose?.()
+      }}
+    >
+      <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
         <SheetHeader className="px-6 py-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="text-lg font-bold">Menú</SheetTitle>
-            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <SheetTitle className="text-lg font-bold">Menú</SheetTitle>
+              <SheetDescription className="sr-only">
+                Navegación del panel: accesos al dashboard y cierre de sesión.
+              </SheetDescription>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onClose?.()}
+              className="h-8 w-8 shrink-0"
+              aria-label="Cerrar menú"
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
