@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { type User, type Contractor, type EstadoCuota } from '@/lib/types'
 import { getContractors } from '@/lib/firebase-db'
+import { contractsForCedula, isContractFinished } from '@/lib/contractor-utils'
+import { ContractSwitcher } from '@/components/contratistas/contract-switcher'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -53,15 +55,16 @@ function calcularProgresoTiempo(fechaInicio?: string, fechaFin?: string): number
 }
 
 export function ContractorDashboard({ user }: ContractorDashboardProps) {
-  const [data, setData] = useState<Contractor | null>(null)
+  const [contracts, setContracts] = useState<Contractor[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(() => {
     setLoading(true)
     getContractors().then(list => {
-      // Solo buscar el contrato que coincida con la cédula del usuario
-      const found = list.find(c => c.cedula === user.cedula) ?? null
-      setData(found)
+      const mine = contractsForCedula(list, user.cedula)
+      setContracts(mine)
+      setSelectedId((prev) => (prev && mine.some((c) => c.id === prev) ? prev : (mine[0]?.id ?? null)))
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [user.cedula])
@@ -76,6 +79,8 @@ export function ContractorDashboard({ user }: ContractorDashboardProps) {
     </div>
   )
 
+  const data = contracts.find((c) => c.id === selectedId) ?? null
+
   if (!data) return (
     <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
       No se encontró información de contrato asociada a tu cuenta.
@@ -89,6 +94,7 @@ export function ContractorDashboard({ user }: ContractorDashboardProps) {
   
   // Verificar si debe entregar informe
   const debeEntregarInforme = data.estadoCuota === 'pendiente_informe_contratista'
+  const contratoFinalizado = isContractFinished(data)
 
   // Estados del proceso de pago para el stepper
   const estadosProceso: EstadoCuota[] = [
@@ -153,20 +159,35 @@ export function ContractorDashboard({ user }: ContractorDashboardProps) {
           <h1 className="text-xl font-bold text-foreground">Bienvenido, {user.name.split(' ')[0]}</h1>
           <p className="text-sm text-muted-foreground">Consulta el estado de tu contrato y pagos</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={loadData}
-          disabled={loading}
-          className="gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Actualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <ContractSwitcher contracts={contracts} value={selectedId ?? ''} onChange={setSelectedId} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadData}
+            disabled={loading}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </Button>
+        </div>
       </div>
 
+      {contratoFinalizado && (
+        <Alert className="border-amber-400/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertDescription className="text-amber-700 dark:text-amber-400 font-medium">
+            Este contrato ya terminó.
+            {contracts.length > 1
+              ? ' Cambia de contrato en la lista de arriba para ver los demás.'
+              : ' Cuando se registre uno nuevo, podrás verlo aquí.'}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Alerta si debe entregar informe */}
-      {debeEntregarInforme && (
+      {debeEntregarInforme && !contratoFinalizado && (
         <Alert className="border-amber-400/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <AlertDescription className="text-amber-700 dark:text-amber-400 font-medium">

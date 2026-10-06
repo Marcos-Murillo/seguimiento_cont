@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { type Contractor } from '@/lib/types'
 import { getContractors } from '@/lib/firebase-db'
+import { contractsForCedula } from '@/lib/contractor-utils'
+import { ContractSwitcher } from '@/components/contratistas/contract-switcher'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -12,15 +14,17 @@ import { History, FileText, Calendar, DollarSign } from 'lucide-react'
 
 export default function HistorialPage() {
   const { user } = useAuth()
-  const [data, setData] = useState<Contractor | null>(null)
+  const [contracts, setContracts] = useState<Contractor[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user) return
-    
+
     getContractors().then(list => {
-      const found = list.find(c => c.cedula === user.cedula) ?? null
-      setData(found)
+      const mine = contractsForCedula(list, user.cedula)
+      setContracts(mine)
+      setSelectedId((prev) => (prev && mine.some((c) => c.id === prev) ? prev : (mine[0]?.id ?? null)))
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [user])
@@ -32,6 +36,8 @@ export default function HistorialPage() {
       </div>
     )
   }
+
+  const data = contracts.find((c) => c.id === selectedId) ?? null
 
   if (!data) {
     return (
@@ -45,9 +51,12 @@ export default function HistorialPage() {
 
   return (
     <div className="flex flex-col h-full gap-4">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">Historial de Pagos</h1>
-        <p className="text-sm text-muted-foreground">Registro de todas las actualizaciones de tu contrato</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Historial de Pagos</h1>
+          <p className="text-sm text-muted-foreground">Registro de las actualizaciones del contrato seleccionado</p>
+        </div>
+        <ContractSwitcher contracts={contracts} value={selectedId ?? ''} onChange={setSelectedId} />
       </div>
 
       {/* Resumen del contrato */}

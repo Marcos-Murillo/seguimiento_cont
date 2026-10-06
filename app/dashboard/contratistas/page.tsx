@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { type Contractor, type EstadoCuota } from '@/lib/types'
 import { createContractor, updateContractor, deleteContractor } from '@/lib/firebase-db'
-import { fetchContractorsList } from '@/lib/contractor-utils'
+import { fetchContractorsList, isContractFinished } from '@/lib/contractor-utils'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,17 +18,19 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ContractorStatusBadge } from '@/components/contratistas/contractor-display'
 import { ContractorDetailPanel } from '@/components/contratistas/contractor-detail-panel'
+import { PaymentStatusPanel } from '@/components/contratistas/payment-status-panel'
 import { NewContractDialog } from '@/components/contratistas/new-contract-dialog'
-import { MoreHorizontal, Eye, Pencil, Trash2, Search, Plus, Filter } from 'lucide-react'
+import { MoreHorizontal, Eye, CreditCard, Trash2, Search, Plus, Filter, FilePlus2 } from 'lucide-react'
 import { ESTADO_CUOTA_LABELS } from '@/lib/estado-utils'
 
 export default function ContratistasPage() {
   const [contractors, setContractors] = useState<Contractor[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedContractor, setSelectedContractor] = useState<Contractor | null>(null)
-  const [dialogMode, setDialogMode] = useState<'view' | 'edit'>('view')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [paymentOpen, setPaymentOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
+  const [newPreset, setNewPreset] = useState<{ nombre: string; cedula: string } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
@@ -65,13 +67,16 @@ export default function ContratistasPage() {
 
   const openView = (c: Contractor) => {
     setSelectedContractor(c)
-    setDialogMode('view')
     setDialogOpen(true)
   }
-  const openEdit = (c: Contractor) => {
+  const openPayment = (c: Contractor) => {
     setSelectedContractor(c)
-    setDialogMode('edit')
-    setDialogOpen(true)
+    setPaymentOpen(true)
+  }
+  const openNewContract = (preset?: { nombre: string; cedula: string }) => {
+    setNewPreset(preset ?? null)
+    setPaymentOpen(false)
+    setNewOpen(true)
   }
 
   const handleSave = async (updated: Contractor) => {
@@ -120,7 +125,7 @@ export default function ContratistasPage() {
           <h1 className="text-xl font-bold text-foreground">Contratistas</h1>
           <p className="text-sm text-muted-foreground">Gestión de contratos</p>
         </div>
-        <Button size="sm" onClick={() => setNewOpen(true)}>
+        <Button size="sm" onClick={() => openNewContract()}>
           <Plus className="mr-1.5 h-4 w-4" /> Nuevo Contrato
         </Button>
       </div>
@@ -197,7 +202,14 @@ export default function ContratistasPage() {
                       <TableCell className="text-center">{c.cuotaNo}</TableCell>
                       <TableCell className="text-right">${c.total.toLocaleString('es-CO')}</TableCell>
                       <TableCell>
-                        <ContractorStatusBadge status={c.estadoCuota} isEstadoCuota />
+                        <div className="flex flex-col items-start gap-1">
+                          <ContractorStatusBadge status={c.estadoCuota} isEstadoCuota />
+                          {isContractFinished(c) && (
+                            <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                              Contrato finalizado
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs">{c.fechaEntrega}</TableCell>
                       <TableCell className="text-xs">{c.fechaEnvioPresupuesto}</TableCell>
@@ -212,8 +224,13 @@ export default function ContratistasPage() {
                             <DropdownMenuItem onClick={() => openView(c)}>
                               <Eye className="mr-2 h-4 w-4" /> Ver información
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEdit(c)}>
-                              <Pencil className="mr-2 h-4 w-4" /> Actualizar
+                            <DropdownMenuItem onClick={() => openPayment(c)}>
+                              <CreditCard className="mr-2 h-4 w-4" /> Estado de pago
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openNewContract({ nombre: c.nombre, cedula: c.cedula })}
+                            >
+                              <FilePlus2 className="mr-2 h-4 w-4" /> Crear nuevo contrato
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -235,14 +252,27 @@ export default function ContratistasPage() {
       </Card>
 
       <ContractorDetailPanel
-        key={dialogOpen && selectedContractor ? selectedContractor.id : 'closed'}
+        key={dialogOpen && selectedContractor ? `view-${selectedContractor.id}` : 'view-closed'}
         contractor={selectedContractor}
-        mode={dialogMode}
+        mode="view"
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSave={handleSave}
       />
-      <NewContractDialog open={newOpen} onOpenChange={setNewOpen} onSave={handleNew} />
+      <PaymentStatusPanel
+        key={paymentOpen && selectedContractor ? `pay-${selectedContractor.id}` : 'pay-closed'}
+        contractor={selectedContractor}
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        onSave={handleSave}
+        onCreateNew={(c) => openNewContract({ nombre: c.nombre, cedula: c.cedula })}
+      />
+      <NewContractDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        onSave={handleNew}
+        preset={newPreset}
+      />
     </div>
   )
 }

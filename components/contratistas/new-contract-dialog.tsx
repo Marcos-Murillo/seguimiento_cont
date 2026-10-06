@@ -46,21 +46,29 @@ export function NewContractDialog({
   open,
   onOpenChange,
   onSave,
+  preset,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   onSave: (data: Contractor) => void
+  /** Persona del contrato que ya terminó. El resto del formulario nace vacío. */
+  preset?: { nombre: string; cedula: string } | null
 }) {
   const [form, setForm] = useState<FormData>(emptyContractForm)
   const [approvedUsers, setApprovedUsers] = useState<{ id: string; name: string; cedula: string }[]>([])
 
   useEffect(() => {
     if (!open) return
+    setForm({
+      ...emptyContractForm(),
+      nombre: preset?.nombre ?? '',
+      cedula: preset?.cedula ?? '',
+    })
     fetch('/api/usuarios')
       .then((r) => r.json())
       .then((data) => setApprovedUsers(Array.isArray(data) ? data : []))
       .catch(() => setApprovedUsers([]))
-  }, [open])
+  }, [open, preset?.nombre, preset?.cedula])
 
   const patch = (field: keyof FormData, value: unknown) => setForm((prev) => ({ ...prev, [field]: value }))
 
@@ -91,7 +99,11 @@ export function NewContractDialog({
       <DialogContent className="max-w-3xl w-full p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-5 pb-3 border-b border-border">
           <DialogTitle>Nuevo Contrato</DialogTitle>
-          <DialogDescription>Completa la información del nuevo contrato</DialogDescription>
+          <DialogDescription>
+            {preset?.nombre
+              ? `Contrato nuevo para ${preset.nombre}. Se crea desde cero; el contrato anterior se conserva.`
+              : 'Completa la información del nuevo contrato'}
+          </DialogDescription>
         </DialogHeader>
         <ScrollArea className="h-[70vh]">
           <div className="px-6 py-4 space-y-5">
@@ -113,7 +125,10 @@ export function NewContractDialog({
                       <SelectValue placeholder="Seleccionar contratista..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {approvedUsers.length === 0 ? (
+                      {preset?.nombre && !approvedUsers.some((c) => c.name === preset.nombre) && (
+                        <SelectItem value={preset.nombre}>{preset.nombre}</SelectItem>
+                      )}
+                      {approvedUsers.length === 0 && !preset?.nombre ? (
                         <SelectItem value="__none__" disabled>
                           Sin contratistas aprobados
                         </SelectItem>

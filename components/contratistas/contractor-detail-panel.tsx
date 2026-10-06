@@ -283,22 +283,20 @@ export function ContractorDetailPanel({
               <User className="h-6 w-6 text-primary" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setHistorialOpen((v) => !v)}
-                    className="h-7 px-2.5 text-xs gap-1.5 border-amber-400/50 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
-                  >
-                    <History className="h-3.5 w-3.5" />
-                    Historial
-                  </Button>
-                </div>
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setHistorialOpen((v) => !v)}
+                  className="h-7 px-2.5 text-xs gap-1.5 border-amber-400/50 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+                >
+                  <History className="h-3.5 w-3.5" />
+                  Historial
+                </Button>
                 {!editing && (
                   <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => setEditing(true)}>
-                    <Pencil className="h-3.5 w-3.5 mr-1" /> Actualizar
+                    <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
                   </Button>
                 )}
               </div>
